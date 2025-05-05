@@ -1,0 +1,1550 @@
+// src/App.jsx
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import LoadingSpinner from './components/common/LoadingSpinner';
+
+// Lazy-loaded components for code splitting
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+
+// Protected route component to redirect unauthenticated users
+const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth();
+  
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+  
+  return isAuthenticated ? children : <Navigate to="/login" />;
+};
+
+// Public route component to redirect authenticated users away from login pages
+const PublicRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth();
+  
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+  
+  return !isAuthenticated ? children : <Navigate to="/dashboard" />;
+};
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <ThemeProvider>
+          <Suspense fallback={<LoadingSpinner />}>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<Navigate replace to="/login" />} />
+              <Route path="/login" element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              } />
+              <Route path="/register" element={
+                <PublicRoute>
+                  <Register />
+                </PublicRoute>
+              } />
+              <Route path="/forgot-password" element={
+                <PublicRoute>
+                  <ForgotPassword />
+                </PublicRoute>
+              } />
+              
+              {/* Protected routes */}
+              <Route path="/dashboard/*" element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              
+              {/* 404 route */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </ThemeProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+
+// src/contexts/AuthContext.jsx
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { jwtDecode } from 'jwt-decode';
+import authService from '../services/authService';
+
+const AuthContext = createContext(null);
+
+export const useAuth = () => useContext(AuthContext);
+
+export const AuthProvider = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Check if token exists and is valid on mount
+  useEffect(() => {
+    const verifyToken = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
+        // Check if token is expired
+        const decodedToken = jwtDecode(token);
+        const currentTime = Date.now() / 1000;
+        
+        if (decodedToken.exp < currentTime) {
+          // Token is expired
+          handleLogout();
+          setLoading(false);
+          return;
+        }
+
+        // Verify with the server
+        const userData = await authService.verifyToken();
+        setCurrentUser(userData);
+        setIsAuthenticated(true);
+      } catch (err) {
+        console.error('Auth verification failed:', err);
+        handleLogout();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    verifyToken();
+  }, []);
+
+  const handleLogin = useCallback(async (credentials) => {
+    try {
+      setError(null);
+      setLoading(true);
+      const { user, token } = await authService.login(credentials);
+      localStorage.setItem('token', token);
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+      return user;
+    } catch (err) {
+      setError(err.message || 'Login failed. Please try again.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleRegister = useCallback(async (userData) => {
+    try {
+      setError(null);
+      setLoading(true);
+      const { user, token } = await authService.register(userData);
+      localStorage.setItem('token', token);
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+      return user;
+    } catch (err) {
+      setError(err.message || 'Registration failed. Please try again.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('token');
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+  }, []);
+
+  const handleForgotPassword = useCallback(async (email) => {
+    try {
+      setError(null);
+      setLoading(true);
+      await authService.forgotPassword(email);
+    } catch (err) {
+      setError(err.message || 'Failed to process password reset. Please try again.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleResetPassword = useCallback(async (token, newPassword) => {
+    try {
+      setError(null);
+      setLoading(true);
+      await authService.resetPassword(token, newPassword);
+    } catch (err) {
+      setError(err.message || 'Failed to reset password. Please try again.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const value = {
+    currentUser,
+    isAuthenticated,
+    loading,
+    error,
+    login: handleLogin,
+    register: handleRegister,
+    logout: handleLogout,
+    forgotPassword: handleForgotPassword,
+    resetPassword: handleResetPassword,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+// src/contexts/ThemeContext.jsx
+import { createContext, useContext, useState, useEffect } from 'react';
+
+const ThemeContext = createContext(null);
+
+export const useTheme = () => useContext(ThemeContext);
+
+export const ThemeProvider = ({ children }) => {
+  const [darkMode, setDarkMode] = useState(() => {
+    const savedMode = localStorage.getItem('darkMode');
+    return savedMode ? JSON.parse(savedMode) : 
+      window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
+
+  const toggleTheme = () => {
+    setDarkMode(prev => !prev);
+  };
+
+  return (
+    <ThemeContext.Provider value={{ darkMode, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+};
+
+// src/pages/Login.jsx
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useForm } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
+import Button from '../components/common/Button';
+import TextInput from '../components/common/TextInput';
+import Alert from '../components/common/Alert';
+import { useTheme } from '../contexts/ThemeContext';
+
+// Validation schema
+const schema = yup.object().shape({
+  email: yup
+    .string()
+    .email('Please enter a valid email')
+    .required('Email is required'),
+  password: yup
+    .string()
+    .required('Password is required')
+    .min(8, 'Password must be at least 8 characters'),
+});
+
+const Login = () => {
+  const { login, error: authError } = useAuth();
+  const { darkMode, toggleTheme } = useTheme();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+  
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    resolver: yupResolver(schema),
+    mode: 'onBlur',
+  });
+
+  const onSubmit = async (data) => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      await login(data);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className={`min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold">
+            Sign in to your account
+          </h2>
+        </div>
+        
+        {(error || authError) && (
+          <Alert type="error" message={error || authError} />
+        )}
+        
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
+          <div className="rounded-md shadow-sm -space-y-px">
+            <TextInput
+              id="email"
+              name="email"
+              type="email"
+              label="Email Address"
+              register={register}
+              error={errors.email?.message}
+              placeholder="Email address"
+              autoComplete="email"
+              required
+            />
+            
+            <TextInput
+              id="password"
+              name="password"
+              type="password"
+              label="Password"
+              register={register}
+              error={errors.password?.message}
+              placeholder="Password"
+              autoComplete="current-password"
+              required
+              className="mt-2"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <input
+                id="remember-me"
+                name="remember-me"
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="remember-me" className="ml-2 block text-sm">
+                Remember me
+              </label>
+            </div>
+
+            <div className="text-sm">
+              <Link to="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
+                Forgot your password?
+              </Link>
+            </div>
+          </div>
+
+          <div>
+            <Button
+              type="submit"
+              isLoading={isLoading}
+              fullWidth
+            >
+              Sign in
+            </Button>
+          </div>
+          
+          <div className="text-center">
+            <p className="mt-2 text-sm">
+              Don't have an account?{' '}
+              <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">
+                Register here
+              </Link>
+            </p>
+          </div>
+        </form>
+        
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={`p-2 rounded-full ${darkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-200 text-gray-700'}`}
+            aria-label="Toggle dark mode"
+          >
+            {darkMode ? '🌙' : '☀️'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Login;
+
+// src/pages/Dashboard.jsx
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import Sidebar from '../components/dashboard/Sidebar';
+import Header from '../components/dashboard/Header';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import useWindowSize from '../hooks/useWindowSize';
+
+// Lazy-loaded dashboard components
+const Overview = lazy(() => import('../components/dashboard/Overview'));
+const UserManagement = lazy(() => import('../components/dashboard/UserManagement'));
+const Settings = lazy(() => import('../components/dashboard/Settings'));
+const Profile = lazy(() => import('../components/dashboard/Profile'));
+
+const Dashboard = () => {
+  const { currentUser, logout } = useAuth();
+  const { darkMode } = useTheme();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { width } = useWindowSize();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Close sidebar on mobile when navigating
+  useEffect(() => {
+    if (width < 1024) {
+      setSidebarOpen(false);
+    }
+  }, [location.pathname, width]);
+
+  // Default to large screens having sidebar open
+  useEffect(() => {
+    if (width >= 1024) {
+      setSidebarOpen(true);
+    } else {
+      setSidebarOpen(false);
+    }
+  }, [width]);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  return (
+    <div className={`h-screen flex overflow-hidden ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+      {/* Sidebar for mobile */}
+      <div 
+        className={`fixed inset-0 z-40 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}
+        aria-hidden="true"
+      >
+        <div 
+          className="absolute inset-0 bg-gray-600 bg-opacity-75 transition-opacity" 
+          onClick={() => setSidebarOpen(false)}
+        ></div>
+        
+        <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white dark:bg-gray-800 transition transform">
+          <Sidebar 
+            currentUser={currentUser} 
+            onCloseSidebar={() => setSidebarOpen(false)} 
+            darkMode={darkMode}
+          />
+        </div>
+      </div>
+
+      {/* Sidebar for desktop */}
+      <div className={`hidden lg:flex lg:flex-shrink-0 transition-all duration-300 ease-in-out ${sidebarOpen ? 'lg:w-64' : 'lg:w-20'}`}>
+        <div className="flex flex-col w-full">
+          <Sidebar 
+            currentUser={currentUser} 
+            isCollapsed={!sidebarOpen} 
+            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
+            darkMode={darkMode}
+          />
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="flex flex-col w-0 flex-1 overflow-hidden">
+        <Header 
+          onOpenSidebar={() => setSidebarOpen(true)} 
+          onLogout={handleLogout} 
+          userName={currentUser?.name} 
+          darkMode={darkMode}
+        />
+        
+        <main className="flex-1 relative overflow-y-auto focus:outline-none">
+          <div className="px-4 sm:px-6 lg:px-8 py-6">
+            <Suspense fallback={<LoadingSpinner />}>
+              <Routes>
+                <Route path="/" element={<Overview />} />
+                <Route path="/users" element={<UserManagement />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/profile" element={<Profile />} />
+              </Routes>
+            </Suspense>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;
+
+// src/components/dashboard/Sidebar.jsx
+import { NavLink } from 'react-router-dom';
+import { useTheme } from '../../contexts/ThemeContext';
+
+// Icons (simplified for brevity - in a real app, import from a library like react-icons)
+const HomeIcon = () => <span>🏠</span>;
+const UsersIcon = () => <span>👥</span>;
+const SettingsIcon = () => <span>⚙️</span>;
+const ProfileIcon = () => <span>👤</span>;
+
+const Sidebar = ({ currentUser, isCollapsed = false, onToggleSidebar, onCloseSidebar, darkMode }) => {
+  const menuItems = [
+    { name: 'Dashboard', to: '/dashboard', icon: <HomeIcon /> },
+    { name: 'Users', to: '/dashboard/users', icon: <UsersIcon /> },
+    { name: 'Settings', to: '/dashboard/settings', icon: <SettingsIcon /> },
+    { name: 'Profile', to: '/dashboard/profile', icon: <ProfileIcon /> },
+  ];
+
+  return (
+    <div className={`h-screen flex flex-col ${darkMode ? 'bg-gray-800' : 'bg-white'} border-r ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className="h-16 flex items-center justify-between px-4">
+        <div className="flex items-center">
+          <img
+            className="h-8 w-auto"
+            src="/logo.svg"
+            alt="Company Logo"
+          />
+          {!isCollapsed && <span className="ml-2 text-lg font-semibold">Admin Panel</span>}
+        </div>
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            <span>{isCollapsed ? '▶' : '◀'}</span>
+          </button>
+        )}
+        {onCloseSidebar && (
+          <button
+            onClick={onCloseSidebar}
+            className="lg:hidden p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            <span>✖</span>
+          </button>
+        )}
+      </div>
+      
+      <div className="flex-1 flex flex-col overflow-y-auto">
+        <nav className="flex-1 px-2 py-4 space-y-1">
+          {menuItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) => `
+                ${isCollapsed ? 'justify-center' : 'justify-start'}
+                flex items-center px-4 py-2 text-sm font-medium rounded-md
+                ${isActive 
+                  ? `${darkMode ? 'bg-gray-900 text-white' : 'bg-blue-100 text-blue-700'}`
+                  : `${darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
+              `}
+            >
+              <div className="flex items-center">
+                <div className={`${isCollapsed ? 'mr-0' : 'mr-3'}`}>
+                  {item.icon}
+                </div>
+                {!isCollapsed && <span>{item.name}</span>}
+              </div>
+            </NavLink>
+          ))}
+        </nav>
+      </div>
+      
+      {/* User profile section */}
+      {!isCollapsed && (
+        <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
+                {currentUser?.name?.charAt(0) || 'U'}
+              </div>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium">
+                {currentUser?.name || 'User'}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                {currentUser?.email || 'user@example.com'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Sidebar;
+
+// src/components/dashboard/Header.jsx
+import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { useTheme } from '../../contexts/ThemeContext';
+
+const Header = ({ onOpenSidebar, onLogout, userName, darkMode }) => {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  const { toggleTheme } = useTheme();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  return (
+    <header className={`relative z-10 flex-shrink-0 h-16 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm flex`}>
+      <button
+        type="button"
+        className="lg:hidden px-4 text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+        onClick={onOpenSidebar}
+      >
+        <span className="sr-only">Open sidebar</span>
+        <span className="text-xl">☰</span>
+      </button>
+      
+      <div className="flex-1 flex justify-between px-4 sm:px-6 lg:px-8">
+        <div className="flex-1 flex items-center">
+          <div className="text-xl font-semibold">
+            Welcome, {userName || 'User'}
+          </div>
+        </div>
+        
+        <div className="ml-4 flex items-center md:ml-6">
+          {/* Theme toggle */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 text-yellow-300' : 'bg-gray-200 text-gray-700'} mr-3`}
+            aria-label="Toggle dark mode"
+          >
+            {darkMode ? '🌙' : '☀️'}
+          </button>
+          
+          {/* Notifications */}
+          <button
+            type="button"
+            className="p-1 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <span className="sr-only">View notifications</span>
+            <span className="text-xl">🔔</span>
+          </button>
+
+          {/* Profile dropdown */}
+          <div className="ml-3 relative" ref={dropdownRef}>
+            <div>
+              <button
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="max-w-xs flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                id="user-menu"
+                aria-expanded="false"
+                aria-haspopup="true"
+              >
+                <span className="sr-only">Open user menu</span>
+                <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
+                  {userName?.charAt(0) || 'U'}
+                </div>
+              </button>
+            </div>
+
+            {dropdownOpen && (
+              <div
+                className={`origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 ${darkMode ? 'bg-gray-800' : 'bg-white'} ring-1 ring-black ring-opacity-5`}
+                role="menu"
+                aria-orientation="vertical"
+                aria-labelledby="user-menu"
+              >
+                <Link
+                  to="/dashboard/profile"
+                  className={`block px-4 py-2 text-sm ${darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                  role="menuitem"
+                  onClick={() => setDropdownOpen(false)}
+                >
+                  Your Profile
+                </Link>
+                <Link
+                  to="/dashboard/settings"
+                  className={`block px-4 py-2 text-sm ${darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                  role="menuitem"
+                  onClick={() => setDropdownOpen(false)}
+                >
+                  Settings
+                </Link>
+                <button
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    onLogout();
+                  }}
+                  className={`w-full text-left block px-4 py-2 text-sm ${darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                  role="menuitem"
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+};
+
+export default Header;
+
+// src/components/common/Button.jsx
+import LoadingSpinner from './LoadingSpinner';
+
+const Button = ({
+  children,
+  type = 'button',
+  onClick,
+  disabled = false,
+  isLoading = false,
+  variant = 'primary',
+  size = 'md',
+  fullWidth = false,
+  className = '',
+  ...props
+}) => {
+  const baseStyles = 'inline-flex items-center justify-center rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-150 ease-in-out';
+  
+  const variants = {
+    primary: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500 text-white',
+    secondary: 'bg-gray-200 hover:bg-gray-300 focus:ring-gray-500 text-gray-800',
+    danger: 'bg-red-600 hover:bg-red-700 focus:ring-red-500 text-white',
+    success: 'bg-green-600 hover:bg-green-700 focus:ring-green-500 text-white',
+  };
+  
+  const sizes = {
+    sm: 'px-3 py-1.5 text-xs',
+    md: 'px-4 py-2 text-sm',
+    lg: 'px-6 py-3 text-base',
+  };
+  
+  const buttonStyles = `
+    ${baseStyles}
+    ${variants[variant]}
+    ${sizes[size]}
+    ${fullWidth ? 'w-full' : ''}
+    ${disabled || isLoading ? 'opacity-60 cursor-not-allowed' : ''}
+    ${className}
+  `;
+  
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled || isLoading}
+      className={buttonStyles}
+      {...props}
+    >
+      {isLoading ? (
+        <>
+          <LoadingSpinner size="sm" />
+          <span className="ml-2">{children}</span>
+        </>
+      ) : (
+        children
+      )}
+    </button>
+  );
+};
+
+export default Button;
+
+// src/components/common/TextInput.jsx
+const TextInput = ({
+  id,
+  name,
+  type = 'text',
+  label,
+  placeholder,
+  error,
+  register,
+  className = '',
+  ...props
+}) => {
+  return (
+    <div className={`relative ${className}`}>
+      {label && (
+        <label htmlFor={id} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          {label}
+        </label>
+      )}
+      <input
+        id={id}
+        type={type}
+        placeholder={placeholder}
+        {...(register ? register(name) : { name })}
+        className={`
+          block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400
+          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+          ${error ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}
+          ${error ? 'focus:ring-red-500 focus:border-red-500' : ''}
+          dark:bg-gray-800 dark:text-white
+        `}
+        {...props}
+      />
+      {error && (
+        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>
+      )}
+    </div>
+  );
+};
+
+export default TextInput;
+
+// src/components/common/Alert.jsx (continuing from where we left off)
+const Alert = ({ type = 'info', message, onClose }) => {
+    const types = {
+      info: 'bg-blue-50 text-blue-800 border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700',
+      success: 'bg-green-50 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700',
+      warning: 'bg-yellow-50 text-yellow-800 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700',
+      error: 'bg-red-50 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700',
+    };
+  
+    return (
+      <div className={`rounded-md p-4 border ${types[type]}`} role="alert">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            {type === 'info' && <span>ℹ️</span>}
+            {type === 'success' && <span>✅</span>}
+            {type === 'warning' && <span>⚠️</span>}
+            {type === 'error' && <span>❌</span>}
+          </div>
+          <div className="ml-3">
+            <p className="text-sm">{message}</p>
+          </div>
+          {onClose && (
+            <div className="ml-auto pl-3">
+              <div className="-mx-1.5 -my-1.5">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <span className="sr-only">Dismiss</span>
+                  <span>✖</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+  
+  export default Alert;
+  
+  // src/components/common/LoadingSpinner.jsx
+  const LoadingSpinner = ({ size = 'md', className = '' }) => {
+    const sizes = {
+      sm: 'h-4 w-4',
+      md: 'h-8 w-8',
+      lg: 'h-12 w-12',
+    };
+  
+    return (
+      <div className={`flex justify-center items-center ${className}`}>
+        <svg
+          className={`animate-spin text-blue-500 ${sizes[size]}`}
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          ></circle>
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
+        </svg>
+      </div>
+    );
+  };
+  
+  export default LoadingSpinner;
+  
+  // src/components/dashboard/Overview.jsx
+  import { useState, useEffect } from 'react';
+  import { useAuth } from '../../contexts/AuthContext';
+  import useFetch from '../../hooks/useFetch';
+  import LoadingSpinner from '../common/LoadingSpinner';
+  import StatCard from '../common/StatCard';
+  import { useTheme } from '../../contexts/ThemeContext';
+  
+  const Overview = () => {
+    const { currentUser } = useAuth();
+    const { darkMode } = useTheme();
+    const [stats, setStats] = useState({
+      totalUsers: 0,
+      activeUsers: 0,
+      newUsersToday: 0,
+      totalRevenue: 0,
+    });
+    
+    const { data, loading, error } = useFetch('/api/dashboard/stats');
+    
+    useEffect(() => {
+      if (data) {
+        setStats(data);
+      }
+    }, [data]);
+    
+    if (loading) return <LoadingSpinner size="lg" />;
+    
+    if (error) {
+      return (
+        <div className="text-center py-10">
+          <p className="text-red-500">Failed to load dashboard data</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {error.message || 'An unknown error occurred'}
+          </p>
+        </div>
+      );
+    }
+    
+    return (
+      <div>
+        <h1 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          Dashboard Overview
+        </h1>
+        
+        <div className="mt-6">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              title="Total Users"
+              value={stats.totalUsers}
+              icon="👥"
+              trend="+5.2%"
+              trendDirection="up"
+              darkMode={darkMode}
+            />
+            
+            <StatCard
+              title="Active Users"
+              value={stats.activeUsers}
+              icon="👤"
+              trend="+2.1%"
+              trendDirection="up"
+              darkMode={darkMode}
+            />
+            
+            <StatCard
+              title="New Users Today"
+              value={stats.newUsersToday}
+              icon="🆕"
+              trend="-0.5%"
+              trendDirection="down"
+              darkMode={darkMode}
+            />
+            
+            <StatCard
+              title="Total Revenue"
+              value={`$${stats.totalRevenue.toLocaleString()}`}
+              icon="💰"
+              trend="+12.5%"
+              trendDirection="up"
+              darkMode={darkMode}
+            />
+          </div>
+        </div>
+        
+        {/* Recent activity section */}
+        <div className={`mt-8 bg-white dark:bg-gray-800 shadow rounded-lg p-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          <h2 className="text-lg font-medium mb-4">Recent Activity</h2>
+          
+          <div className="flow-root">
+            <ul className="-my-5 divide-y divide-gray-200 dark:divide-gray-700">
+              <li className="py-4">
+                <div className="flex items-center space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                      U
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      New user registered: John Doe
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      10 minutes ago
+                    </p>
+                  </div>
+                </div>
+              </li>
+              
+              <li className="py-4">
+                <div className="flex items-center space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                      A
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      Admin action: System updated
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      1 hour ago
+                    </p>
+                  </div>
+                </div>
+              </li>
+              
+              <li className="py-4">
+                <div className="flex items-center space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                      S
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      Server maintenance completed
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      3 hours ago
+                    </p>
+                  </div>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  export default Overview;
+  
+  // src/components/common/StatCard.jsx
+  const StatCard = ({ title, value, icon, trend, trendDirection, darkMode }) => {
+    return (
+      <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} overflow-hidden shadow rounded-lg`}>
+        <div className="p-5">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <div className={`h-10 w-10 rounded-md flex items-center justify-center ${darkMode ? 'bg-gray-700' : 'bg-blue-100'}`}>
+                <span className="text-xl">{icon}</span>
+              </div>
+            </div>
+            <div className="ml-5 w-0 flex-1">
+              <dl>
+                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                  {title}
+                </dt>
+                <dd>
+                  <div className="text-lg font-medium text-gray-900 dark:text-white">
+                    {value}
+                  </div>
+                </dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} px-5 py-3`}>
+          <div className="text-sm">
+            <div className="flex items-center">
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  trendDirection === 'up'
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                    : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                }`}
+              >
+                {trendDirection === 'up' ? '↑' : '↓'} {trend}
+              </span>
+              <span className="ml-2 text-gray-500 dark:text-gray-400">from previous period</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  export default StatCard;
+  
+  // src/components/dashboard/UserManagement.jsx
+  import { useState, useEffect } from 'react';
+  import { useTheme } from '../../contexts/ThemeContext';
+  import useFetch from '../../hooks/useFetch';
+  import LoadingSpinner from '../common/LoadingSpinner';
+  import Button from '../common/Button';
+  import TextInput from '../common/TextInput';
+  import Alert from '../common/Alert';
+  
+  const UserManagement = () => {
+    const { darkMode } = useTheme();
+    const [users, setUsers] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [alertMessage, setAlertMessage] = useState('');
+    const [alertType, setAlertType] = useState('');
+    
+    const { data, loading, error, refetch } = useFetch('/api/users');
+    
+    useEffect(() => {
+      if (data) {
+        setUsers(data);
+      }
+    }, [data]);
+    
+    const handleSearch = (e) => {
+      setSearchTerm(e.target.value);
+    };
+    
+    const filteredUsers = users.filter((user) => 
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    const openEditModal = (user) => {
+      setSelectedUser(user);
+      setIsModalOpen(true);
+    };
+    
+    const closeModal = () => {
+      setSelectedUser(null);
+      setIsModalOpen(false);
+    };
+    
+    const handleDeleteUser = async (userId) => {
+      try {
+        setIsDeleting(true);
+        // Mock API call for demo
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Update UI optimistically
+        setUsers(users.filter(user => user.id !== userId));
+        
+        showAlert('User deleted successfully', 'success');
+      } catch (error) {
+        showAlert('Failed to delete user', 'error');
+      } finally {
+        setIsDeleting(false);
+      }
+    };
+    
+    const showAlert = (message, type) => {
+      setAlertMessage(message);
+      setAlertType(type);
+      
+      // Auto-hide alert after 3 seconds
+      setTimeout(() => {
+        setAlertMessage('');
+        setAlertType('');
+      }, 3000);
+    };
+    
+    if (loading) return <LoadingSpinner size="lg" />;
+    
+    if (error) {
+      return (
+        <div className="text-center py-10">
+          <p className="text-red-500">Failed to load users</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {error.message || 'An unknown error occurred'}
+          </p>
+          <Button onClick={refetch} className="mt-4">
+            Try Again
+          </Button>
+        </div>
+      );
+    }
+    
+    return (
+      <div>
+        <div className="flex justify-between items-center">
+          <h1 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            User Management
+          </h1>
+          <Button variant="primary">
+            Add New User
+          </Button>
+        </div>
+        
+        {/* Alert messages */}
+        {alertMessage && (
+          <div className="mt-4">
+            <Alert 
+              type={alertType} 
+              message={alertMessage} 
+              onClose={() => {
+                setAlertMessage('');
+                setAlertType('');
+              }}
+            />
+          </div>
+        )}
+        
+        {/* Search box */}
+        <div className="mt-6">
+          <TextInput
+            id="search"
+            placeholder="Search users..."
+            value={searchTerm}
+            onChange={handleSearch}
+          />
+        </div>
+        
+        {/* Users table */}
+        <div className="mt-6 overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+          <table className={`min-w-full divide-y divide-gray-300 dark:divide-gray-700 ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
+            <thead>
+              <tr>
+                <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold sm:pl-6">
+                  Name
+                </th>
+                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold">
+                  Email
+                </th>
+                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold">
+                  Role
+                </th>
+                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold">
+                  Status
+                </th>
+                <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className={`divide-y divide-gray-200 dark:divide-gray-700`}>
+              {filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="py-4 text-center text-sm italic text-gray-500 dark:text-gray-400">
+                    No users found
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map((user) => (
+                  <tr key={user.id}>
+                    <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium sm:pl-6">
+                      {user.name}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-4 text-sm">
+                      {user.email}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-4 text-sm">
+                      {user.role}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-4 text-sm">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        user.status === 'active' 
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                      }`}>
+                        {user.status}
+                      </span>
+                    </td>
+                    <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                      <button
+                        onClick={() => openEditModal(user)}
+                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-4"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(user.id)}
+                        disabled={isDeleting}
+                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* Edit user modal */}
+        {isModalOpen && selectedUser && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+              <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+              </div>
+              
+              <div className={`inline-block align-bottom ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full`}>
+                <div className="px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <h3 className="text-lg leading-6 font-medium">
+                    Edit User
+                  </h3>
+                  <div className="mt-4 space-y-4">
+                    <TextInput
+                      id="edit-name"
+                      label="Name"
+                      value={selectedUser.name}
+                      // In a real app, you'd handle onChange
+                    />
+                    <TextInput
+                      id="edit-email"
+                      label="Email"
+                      type="email"
+                      value={selectedUser.email}
+                      // In a real app, you'd handle onChange
+                    />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Role
+                      </label>
+                      <select
+                        id="role"
+                        name="role"
+                        className={`block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700`}
+                        defaultValue={selectedUser.role}
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="editor">Editor</option>
+                        <option value="user">User</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Status
+                      </label>
+                      <select
+                        id="status"
+                        name="status"
+                        className={`block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700`}
+                        defaultValue={selectedUser.status}
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-100 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                  <Button
+                    variant="primary"
+                    className="sm:ml-3"
+                  >
+                    Save Changes
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={closeModal}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+  
+  export default UserManagement;
+  
+  // src/hooks/useFetch.js
+  import { useState, useEffect, useCallback } from 'react';
+  
+  // This is a mock implementation that returns dummy data
+  // In a real app, this would make actual API calls
+  const useFetch = (url, options = {}) => {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+  
+    // Mock data based on the URL
+    const getMockData = useCallback(() => {
+      if (url.includes('/api/dashboard/stats')) {
+        return {
+          totalUsers: 1250,
+          activeUsers: 870,
+          newUsersToday: 24,
+          totalRevenue: 189320,
+        };
+      } else if (url.includes('/api/users')) {
+        return [
+          { id: 1, name: 'John Doe', email: 'john@example.com', role: 'Admin', status: 'active' },
+          { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'Editor', status: 'active' },
+          { id: 3, name: 'Mike Johnson', email: 'mike@example.com', role: 'User', status: 'inactive' },
+          { id: 4, name: 'Sarah Williams', email: 'sarah@example.com', role: 'User', status: 'active' },
+          { id: 5, name: 'Robert Brown', email: 'robert@example.com', role: 'Editor', status: 'active' },
+        ];
+      }
+      return null;
+    }, [url]);
+  
+    const fetchData = useCallback(async () => {
+      try {
+        setLoading(true);
+        // In a real app, this would be a fetch call
+        // const response = await fetch(url, options);
+        // const json = await response.json();
+        
+        // For demo purposes, simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 800));
+        const mockData = getMockData();
+        
+        setData(mockData);
+        setError(null);
+      } catch (err) {
+        setError(err);
+      } finally {
+        setLoading(false);
+      }
+    }, [url, options, getMockData]);
+  
+    useEffect(() => {
+      fetchData();
+    }, [fetchData]);
+  
+    return { data, loading, error, refetch: fetchData };
+  };
+  
+  export default useFetch;
+  
+  // src/hooks/useWindowSize.js
+  import { useState, useEffect } from 'react';
+  
+  const useWindowSize = () => {
+    const [windowSize, setWindowSize] = useState({
+      width: undefined,
+      height: undefined,
+    });
+  
+    useEffect(() => {
+      // Handler to call on window resize
+      function handleResize() {
+        setWindowSize({
+          width: window.innerWidth,
+          height: window.innerHeight,
+        });
+      }
+      
+      // Add event listener
+      window.addEventListener('resize', handleResize);
+      
+      // Call handler right away so state gets updated with initial window size
+      handleResize();
+      
+      // Remove event listener on cleanup
+      return () => window.removeEventListener('resize', handleResize);
+    }, []); // Empty array ensures that effect is only run on mount and unmount
+  
+    return windowSize;
+  };
+  
+  export default useWindowSize;
+  
+  // src/services/authService.js
+  // Mock auth service - in a real app, this would communicate with your backend API
+  
+  const authService = {
+    login: async (credentials) => {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Mock validation
+      if (credentials.email === 'admin@example.com' && credentials.password === 'password') {
+        // Mock successful login
+        const user = {
+          id: 1,
+          name: 'Admin User',
+          email: 'admin@example.com',
+          role: 'admin',
+        };
+        
+        const token = 'mockJWTtoken.signedWithMockSecret.expiresIn1Hour';
+        
+        return { user, token };
+      } else {
+        // Mock failed login
+        throw new Error('Invalid email or password');
+      }
+    },
+    
+    register: async (userData) => {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Mock validation - in real app, this would check if user already exists, etc.
+      const user = {
+        id: Date.now(), // Generate a mock ID
+        name: userData.name,
+        email: userData.email,
+        role: 'user', // Default role for new users
+      };
+      
+      const token = 'mockJWTtoken.signedWithMockSecret.expiresIn1Hour';
+      
+      return { user, token };
+    },
+    
+    verifyToken: async () => {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // In a real app, this would validate the token with the server
+      // For demo, just return a mock user
+      return {
+        id: 1,
+        name: 'Admin User',
+        email: 'admin@example.com',
+        role: 'admin',
+      };
+    },
+    
+    forgotPassword: async (email) => {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // In a real app, this would send a reset email
+      return { success: true };
+    },
+    
+    resetPassword: async (token, newPassword) => {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // In a real app, this would verify the token and update the password
+      return { success: true };
+    },
+  };
+  
+  export default authService;
