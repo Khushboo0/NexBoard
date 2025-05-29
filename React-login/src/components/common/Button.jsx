@@ -8,7 +8,7 @@ const Button = ({
   isLoading = false,
   variant = "primary",
   size = "md",
-  fullwidth = false,
+  fullWidth = false,
   className = "",
   ...props
 }) => {

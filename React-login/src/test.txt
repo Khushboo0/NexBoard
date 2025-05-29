@@ -509,7 +509,7 @@ const SettingsIcon = () => <span>⚙️</span>;
 const ProfileIcon = () => <span>👤</span>;
 
 const Sidebar = ({ currentUser, isCollapsed = false, onToggleSidebar, onCloseSidebar, darkMode }) => {
-  const menuItems = [
+  const menuItems = [,
     { name: 'Dashboard', to: '/dashboard', icon: <HomeIcon /> },
     { name: 'Users', to: '/dashboard/users', icon: <UsersIcon /> },
     { name: 'Settings', to: '/dashboard/settings', icon: <SettingsIcon /> },

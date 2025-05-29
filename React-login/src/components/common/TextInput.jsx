@@ -14,7 +14,7 @@ const TextInput = ({
       {label && (
         <label
           htmlFor={id}
-          lassName="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
         >
           {label}
         </label>
