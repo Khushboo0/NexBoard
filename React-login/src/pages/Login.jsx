@@ -53,7 +53,7 @@ const Login = () => {
 
   return (
     <div
-      className={`min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 ${
+      className={`flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8 ${
         darkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"
       }`}
     >
@@ -62,6 +62,7 @@ const Login = () => {
           <h2 className="mt-6 text-center text-3xl font-extrabold">
             Sign in to your account
           </h2>
+          
         </div>
         {(error || authError) && (
           <Alert type="error" message={error || authError} />
