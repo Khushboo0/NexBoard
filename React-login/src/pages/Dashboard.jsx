@@ -49,68 +49,68 @@ const Dashboard = () => {
     logout();
     navigate("/login");
   };
-};
-return (
-  <div
-    className={`h-screen flex overflow-hidden ${
-      darkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"
-    }`}
-  >
+
+  return (
     <div
-      className={`fixed inset-0 z-40 lg:hidden ${
-        sidebarOpen ? "block" : "hidden"
+      className={`h-screen flex overflow-hidden ${
+        darkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"
       }`}
-      aria-hidden="true"
     >
       <div
-        className="absolute inset-0 bg-gray-600 bg-opacity-75 transition-opacity"
-        onClick={() => setSidebarOpen(false)}
-      ></div>
-      <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white dark:bg-gray-800 transition transform">
-        <Sidebar
-          currentUser={currentUser}
-          onCloseSidebar={() => setSidebarOpen(false)}
-          darkMode={darkMode}
-        />
-      </div>
-    </div>
-    {/* Sidebar for desktop */}
-    <div
-      className={`hidden lg:flex lg:flex-shrink-0 transition-all duration-300 ease-in-out ${
-        sidebarOpen ? "lg:w-64" : "lg:w-20"
-      }`}
-    >
-      <div className="flex flex-col w-full">
-        <Sidebar
-          currentUser={currentUser}
-          isCollapsed={!sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          darkMode={darkMode}
-        />
-      </div>
-    </div>
-    {/* Main content */}
-    <div className="flex flex-col w-0 flex-1 overflow-hidden">
-      <Header
-        onOpenSidebar={() => setSidebarOpen(true)}
-        onLogout={handleLogout}
-        userName={currentUser?.name}
-        darkMode={darkMode}
-      />
-      <main className="flex-1 relative overflow-y-auto focus:outline-none">
-        <div className="px-4 sm:px-6 lg:px-8 py-6">
-          <Suspense fallback={<LoadingSpinner />}>
-            <Routes>
-              <Route path="/" element={<Overview />} />
-              <Route path="/users" element={<UserManagement />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/profile" element={<Profile />} />
-            </Routes>
-          </Suspense>
+        className={`fixed inset-0 z-40 lg:hidden ${
+          sidebarOpen ? "block" : "hidden"
+        }`}
+        aria-hidden="true"
+      >
+        <div
+          className="absolute inset-0 bg-gray-600 bg-opacity-75 transition-opacity"
+          onClick={() => setSidebarOpen(false)}
+        ></div>
+        <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white dark:bg-gray-800 transition transform">
+          <Sidebar
+            currentUser={currentUser}
+            onCloseSidebar={() => setSidebarOpen(false)}
+            darkMode={darkMode}
+          />
         </div>
-      </main>
+      </div>
+      {/* Sidebar for desktop */}
+      <div
+        className={`hidden lg:flex lg:flex-shrink-0 transition-all duration-300 ease-in-out ${
+          sidebarOpen ? "lg:w-64" : "lg:w-20"
+        }`}
+      >
+        <div className="flex flex-col w-full">
+          <Sidebar
+            currentUser={currentUser}
+            isCollapsed={!sidebarOpen}
+            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            darkMode={darkMode}
+          />
+        </div>
+      </div>
+      {/* Main content */}
+      <div className="flex flex-col w-0 flex-1 overflow-hidden">
+        <Header
+          onOpenSidebar={() => setSidebarOpen(true)}
+          onLogout={handleLogout}
+          userName={currentUser?.name}
+          darkMode={darkMode}
+        />
+        <main className="flex-1 relative overflow-y-auto focus:outline-none">
+          <div className="px-4 sm:px-6 lg:px-8 py-6">
+            <Suspense fallback={<LoadingSpinner />}>
+              <Routes>
+                <Route path="/" element={<Overview />} />
+                <Route path="/users" element={<UserManagement />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/profile" element={<Profile />} />
+              </Routes>
+            </Suspense>
+          </div>
+        </main>
+      </div>
     </div>
-  </div>
-);
-
+  );
+};
 export default Dashboard;
