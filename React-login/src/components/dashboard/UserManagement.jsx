@@ -15,7 +15,7 @@ const UserManagement = () => {
   const [alertMessage, setAlertMessage] = useState("");
   const [alertType, setAlertType] = useState("");
 
-  const { data, loading, error, refetch } = useFecth("/api/users");
+  const { data, loading, error, refetch } = useFetch("/api/users");
 
   useEffect(() => {
     if (data) {

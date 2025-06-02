@@ -12,10 +12,14 @@ const AuthContext = createContext(null);
 
 export const useAuth = () => useContext(AuthContext);
 
+const storedUser = localStorage.getItem("user");
+
 export const AuthProvider = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(null);
-  const [loading, setLoading] = useState(null);
+  const [currentUser, setCurrentUser] = useState(
+    storedUser ? JSON.parse(storedUser) : null
+  );
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   //checking the tokens on mount
@@ -24,6 +28,7 @@ export const AuthProvider = ({ children }) => {
       try {
         const token = localStorage.getItem("token");
         if (!token) {
+          setIsAuthenticated(false);
           setLoading(false);
           return;
         }
@@ -34,17 +39,22 @@ export const AuthProvider = ({ children }) => {
         const currentTime = Date.now() / 1000;
 
         if (decodedToken.exp < currentTime) {
-          handleLogout();
+          // handleLogout();
+          console.log('reaching here')
           setLoading(false);
           return;
         }
 
         const userData = await authService.verifyToken();
+        localStorage.setItem("user", JSON.stringify(userData));
+
         setCurrentUser(userData);
         setIsAuthenticated(true);
       } catch (err) {
         console.log("Authetication failed", err);
-        handleLogout();
+        // handleLogout();
+          console.log('reaching here')
+
       } finally {
         setLoading(false);
       }
@@ -53,97 +63,88 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const handleLogin = useCallback(async (credentials) => {
-    try{
-        setError(null);
-        setLoading(true);
-        const {user,token} = await authService.login(credentials);
-        localStorage.setItem('token',token);
-        setCurrentUser(user);
-        setIsAuthenticated(true);
-        return user;
+    try {
+      setError(null);
+      setLoading(true);
+      const { user, token } = await authService.login(credentials);
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
 
-    }
-    catch(err){
-        setError(err.message || 'Login Failed, try again later');
-        throw err;
-    }
-    finally{
-        setLoading(false);
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+      return user;
+    } catch (err) {
+      setError(err.message || "Login Failed, try again later");
+      throw err;
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-    const handleRegister = useCallback(async(userData)=>{
-        try{
-            setLoading(true);
-            setError(null);
-            const {user, token} = await authService.register(userData);
-            localStorage.setItem('token',token);
-            setCurrentUser(user);
-            setIsAuthenticated(true);
-            return user
-        }
-        catch(err){
-            setError(err.message || 'Registeration failed, Please try again later');
-            throw err;
-        }
-        finally{
-            setLoading(false);
-        }
-    },[]);
+  const handleRegister = useCallback(async (userData) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const { user, token } = await authService.register(userData);
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+      return user;
+    } catch (err) {
+      setError(err.message || "Registeration failed, Please try again later");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-    const handleLogout = useCallback(()=>{
-        localStorage.removeItem('token');
-        setCurrentUser(null);
-        setIsAuthenticated(false);
-    },[]);
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem("token");
+    localStorage.removeItem('user');
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+  }, []);
 
-    const handleForgotPassword = useCallback(async(email)=>{
-        try{
-            setError(null);
-            setLoading(true);
+  const handleForgotPassword = useCallback(async (email) => {
+    try {
+      setError(null);
+      setLoading(true);
 
-            await authService.forgotPassword(email);
-        }
-        catch(err){
-            setError(err.message || 'Failed to reset the password');
-            throw err;
+      await authService.forgotPassword(email);
+    } catch (err) {
+      setError(err.message || "Failed to reset the password");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-        }
-        finally{
-            setLoading(false);
-        }
-    },[]);
+  const handleResetPassword = useCallback(async (token, newPassword) => {
+    try {
+      setError(null);
+      setLoading(true);
 
-    const handleResetPassword = useCallback(async(token,newPassword)=>{
-        try{
-            setError(null);
-            setLoading(true);
+      await authService.resetPassword(token, newPassword);
+    } catch (err) {
+      setError(err.message || "Failed to reset password");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-            await authService.resetPassword(token,newPassword);
+  const value = {
+    currentUser,
+    isAuthenticated,
+    loading,
+    error,
+    login: handleLogin,
+    register: handleRegister,
+    logout: handleLogout,
+    forgotPassword: handleForgotPassword,
+    resetPassword: handleResetPassword,
+  };
 
-        }
-        catch(err){
-            setError(err.message || 'Failed to reset password');
-            throw err;
-        }
-        finally{
-            setLoading(false);
-        }
-    },[]);
-
-    const value={
-        currentUser,
-        isAuthenticated,
-        loading,
-        error,
-        login: handleLogin,
-        register: handleRegister,
-        logout: handleLogout,
-        forgotPassword: handleForgotPassword,
-        resetPassword: handleResetPassword,
-    };
-
-    return <AuthContext.Provider value={value}>{children}
-        </AuthContext.Provider>
-
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

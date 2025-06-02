@@ -28,7 +28,7 @@ const Sidebar = ({
     >
       <div className="h-16 flex items-center justify-between px-4">
         <div className="flex items-center">
-          <img className="h-8 w-auto" src="/logo.svg" alt="Company Logo" />
+          {/* <img className="h-8 w-auto" src="/logo.svg" alt="Company Logo" /> */}
           {!isCollapsed && (
             <span className="ml-2 text-lg font-semibold">Admin Panel</span>
           )}

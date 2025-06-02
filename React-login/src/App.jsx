@@ -36,8 +36,9 @@ const PublicRoute = ({ children }) => {
 
 function App() {
   return (
+    <AuthProvider>
     <BrowserRouter>
-      <AuthProvider>
+      
         <ThemeProvider>
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
@@ -71,8 +72,9 @@ function App() {
             </Routes>
           </Suspense>
         </ThemeProvider>
-      </AuthProvider>
+     
     </BrowserRouter>
+    </AuthProvider>
   );
 }
 
