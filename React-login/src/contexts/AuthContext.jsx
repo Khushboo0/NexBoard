@@ -27,41 +27,40 @@ export const AuthProvider = ({ children }) => {
     const verifyToken = async () => {
       try {
         const token = localStorage.getItem("token");
-        console.log("Token on refresh:", (token));
         if (!token) {
-          console.log('unverified ')
+          
           setIsAuthenticated(false);
           setLoading(false);
           return;
         }
-          console.log('verified ')
+        
 
         //toke expiration case
 
         const decodedToken = jwtDecode(token);
-        console.log("Decoded token:", decodedToken);
+        
         const currentTime = Date.now() / 1000;
 
         if (decodedToken.exp < currentTime) {
-          console.log("Token expired");
+         
 
           // handleLogout();
-          console.log('reaching here');
+         
           setIsAuthenticated(false);
           setLoading(false);
           return;
         }
 
         const userData = await authService.verifyToken();
-         console.log("User data from verifyToken:", userData);
+      
         localStorage.setItem("user", JSON.stringify(userData));
 
         setCurrentUser(userData);
         setIsAuthenticated(true);
       } catch (err) {
-        console.log("Authetication failed", err);
+       
         // handleLogout();
-          console.log('reaching here')
+    
 
       } finally {
         setLoading(false);
