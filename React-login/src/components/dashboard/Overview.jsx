@@ -18,9 +18,9 @@ const Overview = () => {
   const { data, loading, error } = useFetch("/api/dashboard/stats");
 
   useEffect(() => {
-    if (data) {
-      setStats(data);
-    }
+    if (data && data.totalUsers !== undefined) {
+    setStats(data);
+  }
   }, [data]);
   if (loading) return <LoadingSpinner size="lg" />;
   if (error) {

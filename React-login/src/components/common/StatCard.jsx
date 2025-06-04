@@ -1,4 +1,4 @@
-const StatCard = ({ title, value, icon, trend, trendDirection, darkMode }) => {
+const StatCard = ({ title = "Title", value = "N/A", icon = "ℹ️", trend = "0%", trendDirection = "up", darkMode = false }) => {
   return (
     <div
       className={`${
@@ -16,7 +16,7 @@ const StatCard = ({ title, value, icon, trend, trendDirection, darkMode }) => {
               <span className="text-xl">{icon}</span>
             </div>
           </div>
-          <div className="ml-5 w-0 flex-1">
+          <div className="ml-5 flex-1">
             <dl>
               <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
                 {title}
