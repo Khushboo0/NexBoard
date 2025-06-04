@@ -44,7 +44,7 @@ const Sidebar = ({
         {onCloseSidebar && (
           <button
             onClick={onCloseSidebar}
-            className="lg:hidden p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+            className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
           >
             <span>✖</span>
           </button>
