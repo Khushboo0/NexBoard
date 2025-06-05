@@ -2,7 +2,7 @@ const StatCard = ({ title = "Title", value = "N/A", icon = "ℹ️", trend = "0%
   return (
     <div
       className={`${
-        darkMode ? "bg-gray-800" : "bg-white"
+        darkMode ? "bg-gray-700" : "bg-white"
       } overflow-hidden shadow rounded-lg`}
     >
       <div className="p-5">
@@ -10,7 +10,7 @@ const StatCard = ({ title = "Title", value = "N/A", icon = "ℹ️", trend = "0%
           <div className="flex-shrink-0">
             <div
               className={`h-10 w-10 rounded-md flex items-center justify-center ${
-                darkMode ? "bg-gray-700" : "bg-blue-100"
+                darkMode ? "bg-gray-500" : "bg-blue-100"
               }`}
             >
               <span className="text-xl">{icon}</span>
@@ -18,11 +18,11 @@ const StatCard = ({ title = "Title", value = "N/A", icon = "ℹ️", trend = "0%
           </div>
           <div className="ml-5 flex-1">
             <dl>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+              <dt className="text-sm font-medium text-gray-200 dark:text-gray-400 truncate">
                 {title}
               </dt>
               <dd>
-                <div className="text-lg font-medium text-gray-900 dark:text-white">
+                <div className="text-lg font-medium text-gray-400 dark:text-white">
                   {value}
                 </div>
               </dd>
@@ -30,7 +30,7 @@ const StatCard = ({ title = "Title", value = "N/A", icon = "ℹ️", trend = "0%
           </div>
         </div>
       </div>
-      <div className={`${darkMode ? "bg-gray-700" : "bg-gray-50"} px-5 py-3`}>
+      <div className={`${darkMode ? "bg-gray-800" : "bg-gray-50"} px-5 py-3`}>
         <div className="text-sm">
           <div className="flex items-center">
             <span
@@ -42,7 +42,7 @@ const StatCard = ({ title = "Title", value = "N/A", icon = "ℹ️", trend = "0%
             >
               {trendDirection === "up" ? "↑" : "↓"} {trend}
             </span>
-            <span className="ml-2 text-gray-500 dark:text-gray-400">
+            <span className="ml-2 text-gray-400 dark:text-gray-400">
               from previous period
             </span>
           </div>

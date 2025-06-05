@@ -70,7 +70,7 @@ const Header = ({ onOpenSidebar, onLogout, userName, darkMode }) => {
                 aria-haspopup="true"
               >
                 <span className="sr-only">Open user menu</span>
-                <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
+                <div className="h-8 w-8 rounded-full bg-gray-600 flex items-center justify-center">
                   {userName?.charAt(0) || "U"}
                 </div>
               </button>

@@ -82,14 +82,14 @@ const Overview = () => {
         </div>
       </div>
       <div
-        className={`mt-8 bg-white dark:bg-gray-800 shadow rounded-lg p-6 ${
-          darkMode ? "text-white" : "text-gray-900"
+        className={`mt-8  dark:bg-gray-800 shadow rounded-lg p-6 ${
+          darkMode ? "text-white bg-gray-800" : "text-gray-900 bg-white"
         }`}
       >
         <h2 className="text-lg font-medium mb-4">Recent Activity</h2>
 
         <div className="flow-root">
-          <ul className="-my-5 divide-y divide-gray-200 dark:divide-gray-700">
+          <ul className="my-2 divide-y divide-gray-200 dark:divide-gray-700">
             <li className="py-4">
               <div className="flex items-center space-x-4">
                 <div className="flex-shrink-0">

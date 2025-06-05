@@ -36,7 +36,7 @@ const Sidebar = ({
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+            className="p-1 border-2 hover:bg-gray-500 dark:hover:bg-gray-700"
           >
             <span>{isCollapsed ? '▶' : '◀'}</span>
           </button>
