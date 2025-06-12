@@ -26,7 +26,7 @@ const TextInput = ({
         type={type}
         placeholder={placeholder}
         aria-describedby={error ? `${inputId}-error` : undefined}
-        {...(register ? register(name) : { name })}
+        {...(register && name ? register(name) : {})} 
         className={`
           block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400
           focus:outline-none

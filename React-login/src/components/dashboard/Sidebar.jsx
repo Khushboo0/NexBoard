@@ -1,4 +1,3 @@
-import { useTheme } from "../../contexts/ThemeContext";
 import { NavLink } from "react-router-dom";
 
 const HomeIcon = () => <span>🏠</span>;
