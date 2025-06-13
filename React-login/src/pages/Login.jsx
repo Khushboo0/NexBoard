@@ -27,6 +27,7 @@ const Login = () => {
   const { darkMode, toggleTheme } = useTheme();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [remember,setRemember] = useState(false);
   const navigate = useNavigate();
 
   const {
@@ -43,7 +44,7 @@ const Login = () => {
 
 
     try {
-      await login(data);
+      await login(data,remember);
       navigate("/dashboard");
     } catch (err) {
       setError(err.message || "Login failed");
@@ -51,6 +52,9 @@ const Login = () => {
       setIsLoading(false);
     }
   };
+  const handleRemember =()=>{
+    setRemember( prev => !prev);
+  }
 
   return (
     <div
@@ -102,6 +106,8 @@ const Login = () => {
                 id="remember-me"
                 name="remember-me"
                 type="checkbox"
+                checked={remember}
+                onChange={handleRemember}
                 className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label htmlFor="remember-me" className="ml-2 block text-sm">

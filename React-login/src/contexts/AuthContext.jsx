@@ -26,42 +26,35 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const verifyToken = async () => {
       try {
-        const token = localStorage.getItem("token");
+        const token = localStorage?.getItem("token") || sessionStorage?.getItem('token');
         if (!token) {
-          
           setIsAuthenticated(false);
           setLoading(false);
           return;
         }
-        
 
         //toke expiration case
 
         const decodedToken = jwtDecode(token);
-        
+
         const currentTime = Date.now() / 1000;
 
         if (decodedToken.exp < currentTime) {
-         
-
           // handleLogout();
-         
+
           setIsAuthenticated(false);
           setLoading(false);
           return;
         }
 
         const userData = await authService.verifyToken();
-      
+
         localStorage.setItem("user", JSON.stringify(userData));
 
         setCurrentUser(userData);
         setIsAuthenticated(true);
       } catch (err) {
-       
         // handleLogout();
-    
-
       } finally {
         setLoading(false);
       }
@@ -69,13 +62,18 @@ export const AuthProvider = ({ children }) => {
     verifyToken();
   }, []);
 
-  const handleLogin = useCallback(async (credentials) => {
+  const handleLogin = useCallback(async (credentials, remember) => {
     try {
       setError(null);
       setLoading(true);
       const { user, token } = await authService.login(credentials);
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
+      if (remember) {
+        localStorage.setItem("token", token);
+        localStorage.setItem("user", JSON.stringify(user));
+      } else {
+        sessionStorage.setItem("token", token);
+        sessionStorage.setItem("user", JSON.stringify(user));
+      }
 
       setCurrentUser(user);
       setIsAuthenticated(true);
@@ -107,8 +105,12 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const handleLogout = useCallback(() => {
-    localStorage.removeItem("token");
-    localStorage.removeItem('user');
+    localStorage?.removeItem("token");
+    localStorage?.removeItem("user");
+
+    sessionStorage?.removeItem("token");
+    sessionStorage?.removeItem("user");
+    
     setCurrentUser(null);
     setIsAuthenticated(false);
   }, []);
