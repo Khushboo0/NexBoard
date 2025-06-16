@@ -1,5 +1,5 @@
 // src/App.jsx
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth, AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Suspense, lazy } from 'react';
@@ -33,7 +33,7 @@ const PublicRoute = ({ children }) => {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <HashRouter>
         <ThemeProvider>
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
@@ -56,7 +56,7 @@ function App() {
             </Routes>
           </Suspense>
         </ThemeProvider>
-      </BrowserRouter>
+      </HashRouter>
     </AuthProvider>
   );
 }
