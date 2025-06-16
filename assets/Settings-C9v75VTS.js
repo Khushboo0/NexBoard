@@ -1,0 +1,1 @@
+import{u as e,j as s}from"./index-Dg20ghQR.js";const o=()=>{const{currentUser:t}=e();return console.log(t),s.jsxs(s.Fragment,{children:[s.jsx("div",{children:"Settings page coming soon"}),";"]})};export{o as default};
